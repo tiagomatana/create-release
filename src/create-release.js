@@ -20,32 +20,52 @@ async function run() {
     const draft = core.getInput('draft', { required: false }) === 'true';
     const prerelease = core.getInput('prerelease', { required: false }) === 'true';
     const commitish = core.getInput('commitish', { required: false }) || context.sha;
+    const generate_release_notes = core.getInput('generate_release_notes', { required: false }) === 'true';
 
-    const bodyPath = core.getInput('body_path', { required: false });
     const owner = core.getInput('owner', { required: false }) || currentOwner;
     const repo = core.getInput('repo', { required: false }) || currentRepo;
-    let bodyFileContent = null;
-    if (bodyPath !== '' && !!bodyPath) {
-      try {
-        bodyFileContent = fs.readFileSync(bodyPath, { encoding: 'utf8' });
-      } catch (error) {
-        core.setFailed(error.message);
+    
+    let releaseData = null;
+    
+    if (!generate_release_notes) {     
+      const bodyPath = core.getInput('body_path', { required: false });
+
+      let bodyFileContent = null;
+      if (bodyPath !== '' && !!bodyPath) {
+        try {
+          bodyFileContent = fs.readFileSync(bodyPath, { encoding: 'utf8' });
+        } catch (error) {
+          core.setFailed(error.message);
+        }
       }
+      
+      releaseData = {
+        owner,
+        repo,
+        tag_name: tag,
+        name: releaseName,
+        body: bodyFileContent || body,
+        draft,
+        prerelease,
+        target_commitish: commitish
+      };
+    } else {
+      releaseData = {
+        owner,
+        repo,
+        tag_name: tag,
+        name: releaseName,
+        draft,
+        prerelease,
+        generate_release_notes,
+        target_commitish: commitish
+      };
     }
 
     // Create a release
     // API Documentation: https://developer.github.com/v3/repos/releases/#create-a-release
     // Octokit Documentation: https://octokit.github.io/rest.js/#octokit-routes-repos-create-release
-    const createReleaseResponse = await github.repos.createRelease({
-      owner,
-      repo,
-      tag_name: tag,
-      name: releaseName,
-      body: bodyFileContent || body,
-      draft,
-      prerelease,
-      target_commitish: commitish
-    });
+    const createReleaseResponse = await github.repos.createRelease(releaseData);
 
     // Get the ID, html_url, and upload URL for the created Release from the response
     const {
